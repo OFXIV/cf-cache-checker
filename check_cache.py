@@ -86,13 +86,7 @@ async def check_cache(session, url, filename):
                     try:
                         async with session.get(url, timeout=60) as resp:
                             with open(file_path, "wb") as f:
-                                while True:
-                                    try:
-                                        chunk = await resp.content.read(1024*1024)
-                                    except aiohttp.client_exceptions.ContentLengthError:
-                                        break
-                                    if not chunk:
-                                        break
+                                async for chunk in resp.content.iter_chunked(1024*1024):
                                     f.write(chunk)
                         if not SAVE_FILE:
                             os.remove(file_path)
