@@ -1,0 +1,15 @@
+# 临时下载文件
+*.tmp
+downloads/
+
+# Python 缓存文件
+__pycache__/
+*.pyc
+
+# 本地覆盖配置（如果有）
+config_local.yaml
+.env
+
+# 系统文件
+.DS_Store
+Thumbs.db

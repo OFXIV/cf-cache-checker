@@ -1,0 +1,25 @@
+# config.yaml 示例配置
+
+# CSV 文件地址，可以是在线 URL 或本地路径
+csv_url: "https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0"
+
+# 最大并发数量
+max_concurrent: 5
+
+# 是否在首次 MISS 时下载完整文件触发缓存
+download_if_miss: true
+
+# 下载后等待多久再进行 HEAD 检测 (秒)
+head_wait_seconds: 1
+
+# 检测哪些列的 URL
+columns:
+  - url
+  - cover
+  - lrc
+
+# 是否保留下载的文件（默认删除）
+keep_downloaded_file: false
+
+# 下载文件的存放目录（仅当 keep_downloaded_file 为 true 时生效）
+download_dir: "downloads"
