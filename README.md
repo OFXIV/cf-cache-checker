@@ -23,8 +23,8 @@ python3 --version
 未安装请先安装 Python 3
 ### 2. 克隆仓库或下载脚本
 ```bash
-git clone https://github.com/yourusername/cf_cache_checker.git
-cd cf_cache_checker
+git [clone https://github.com/yourusername/cf_cache_checker.git](https://github.com/OFXIV/cf-cache-checker.git)
+cd cf-cache-checker
 ```
 ### 3. 安装依赖
 ```bash
@@ -86,4 +86,5 @@ cf_cache_checker/
 ├─ check_cache.py       # 脚本主文件
 ├─ config.yaml          # 配置文件
 └─ README.md            # 使用说明
+
 ```
