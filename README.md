@@ -44,9 +44,9 @@ keep_downloaded_file: false
 download_dir: "downloads"
 output_csv: "output_cache_status.csv"
 auto_purge_cf_cache: false 
-cf_api_url: "https://api.cloudflare.com/client/v4"  # 默认 API 地址
-cf_api_token: "your_cf_api_token_here"             # 替换为实际 API Token
-cf_zone_id: "your_cf_zone_id_here"                 # 替换为你的 Zone ID
+cf_api_url: "https://api.cloudflare.com/client/v4"  
+cf_api_token: "your_cf_api_token_here"             
+cf_zone_id: "your_cf_zone_id_here"                 
 ```
 - csv_url：在线 CSV 或本地 CSV 文件路径
 - max_concurrent：并发数量
@@ -69,19 +69,6 @@ python3 check_cache.py
 在线表格已加载: (98, 6)
 检测进度: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 294/294 [00:00<00:00, 771.75it/s]✅ 检测完成，结果已保存到 output_cache_status.csv
 ```
----
-## 安装与运行
-确保系统安装 Python 3，并安装以下依赖：
-```bash
-pip3 install pandas aiohttp requests pyyaml
-```
-- HIT: 文件已经缓存
-
-- MISS: 文件未缓存
-
-- ERROR: URL 无效或返回 HTML 页面
-
-- age: 缓存时间（秒）
 ---
 ## 注意事项
 
