@@ -9,7 +9,6 @@
 ## 功能
 
 - 检测 URL 是否被 Cloudflare 缓存（HIT/MISS）。
-- MISS 时可下载文件触发缓存（可配置保留或删除）。
 - 支持多列批量检测。
 - 并发检测，默认 5 个任务同时进行。
 - 增加清除错误文件网址`CF`缓存(需要配置开启)
@@ -30,7 +29,7 @@ cd cf-cache-checker
 ```
 ### 3. 安装依赖
 ```bash
-pip3 install pandas aiohttp requests pyyaml tqdm aiofiles
+pip3 install pandas aiohttp requests pyyaml aiofiles
 ```
 ### 4. 配置
 编辑 `config.yaml`：
@@ -38,12 +37,11 @@ pip3 install pandas aiohttp requests pyyaml tqdm aiofiles
 ```yaml
 csv_url: "https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0"
 max_concurrent: 5
-download_if_miss: true
+download_if_miss: false
 head_wait_seconds: 1
 columns: ["url", "cover", "lrc"]
 keep_downloaded_file: false
 download_dir: "downloads"
-output_csv: "output_cache_status.csv"
 auto_purge_cf_cache: false 
 cf_api_url: "https://api.cloudflare.com/client/v4"  
 cf_api_token: "your_cf_api_token_here"             
@@ -56,7 +54,6 @@ cf_zone_id: "your_cf_zone_id_here"
 - keep_downloaded_file：下载文件是否保留
 - download_dir：下载文件的存放目录（仅当 keep_downloaded_file 为 true 时生效）
 - columns：表格中需要检测的列
-- output_csv：输出结果文件名
 - auto_purge_cf_cache：是否开启自动清除 CF 缓存
 - cf_api_url：cf缓存清除默认 API 地址
 - cf_api_token：cf实际 API Token
@@ -67,8 +64,11 @@ python3 check_cache.py
 ```
 输出示例：
 ```arduino
-在线表格已加载: (98, 6)
-检测进度: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████| 294/294 [00:00<00:00, 771.75it/s]✅ 检测完成，结果已保存到 output_cache_status.csv
+[ERROR] col: cover | url: https://example.com/xxx1.jpg | 尝试 3/2 | cf_status: HIT | 错误: 返回 HTML/JSON
+[SUCCESS] col: cover | HIT | age: 4191 | url: https://example.com/xxx.jpg
+⚠️ 检测到 1 个错误 URL，开始批量清除 CF 缓存...
+✅ 自动清除 1 个 URL 缓存成功
+✅ 检测完成。
 ```
 ---
 ## 注意事项
@@ -89,6 +89,7 @@ cf_cache_checker/
 └─ README.md            # 使用说明
 
 ```
+
 
 
 
