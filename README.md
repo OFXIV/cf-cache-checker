@@ -1,6 +1,9 @@
 # CF Cache Checker
 
 一个用于检测当前 `Cloudflare`当前节点缓存状态的小脚本，支持在线 CSV 或本地 CSV 输入
+> `CF`为区域性 边缘性缓存  
+> 所以只能检测离当前客户端最优的`CF CDN`边缘节点服务器
+> `CF`免费计划`range`请求不缓存
 
 ---
 
@@ -88,5 +91,6 @@ cf_cache_checker/
 └─ README.md            # 使用说明
 
 ```
+
 
 
