@@ -26,7 +26,7 @@ config = load_config()
 
 CSV_URL = config.get("csv_url")
 MAX_CONCURRENT = config.get("max_concurrent", 5)
-DOWNLOAD_IF_MISS = config.get("download_if_miss", Falsr)
+DOWNLOAD_IF_MISS = config.get("download_if_miss", False)
 HEAD_WAIT = config.get("head_wait_seconds", 1)
 COLUMNS = config.get("columns", ["url", "cover", "lrc"])
 SAVE_FILE = config.get("keep_downloaded_file", False)
@@ -183,3 +183,4 @@ async def main():
 # -------------------------
 if __name__ == "__main__":
     asyncio.run(main())
+
