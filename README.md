@@ -30,7 +30,7 @@ cd cf-cache-checker
 ```
 ### 3. 安装依赖
 ```bash
-pip3 install pandas aiohttp requests pyyaml tqdm
+pip3 install pandas aiohttp requests pyyaml tqdm aiofiles
 ```
 ### 4. 配置
 编辑 `config.yaml`：
@@ -89,6 +89,7 @@ cf_cache_checker/
 └─ README.md            # 使用说明
 
 ```
+
 
 
 
