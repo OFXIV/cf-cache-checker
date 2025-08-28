@@ -7,6 +7,7 @@ from io import StringIO
 import requests
 import yaml
 from tqdm.asyncio import tqdm_asyncio
+from tqdm import tqdm
 import aiofiles
 
 # -------------------------
@@ -25,13 +26,12 @@ config = load_config()
 
 CSV_URL = config.get("csv_url")
 MAX_CONCURRENT = config.get("max_concurrent", 5)
-DOWNLOAD_IF_MISS = config.get("download_if_miss", True)
+DOWNLOAD_IF_MISS = config.get("download_if_miss", Falsr)
 HEAD_WAIT = config.get("head_wait_seconds", 1)
 COLUMNS = config.get("columns", ["url", "cover", "lrc"])
 SAVE_FILE = config.get("keep_downloaded_file", False)
 DOWNLOAD_DIR = config.get("download_dir", "downloads")
 AUTO_PURGE_CF_CACHE = config.get("auto_purge_cf_cache", False)
-OUTPUT_CSV = config.get("output_csv", "output_cache_status.csv")
 
 # Cloudflare API 配置
 CF_API_URL = config.get("cf_api_url")
@@ -74,16 +74,33 @@ async def purge_cf_cache(urls):
                 print(f"⚠️ 自动清除缓存失败: {text}")
 
 # -------------------------
-# 异步检测缓存
+# 异步下载文件（带子进度条）
 # -------------------------
-async def download_file(session, url, filename):
+async def download_file(session, url, filename, total_pbar=None):
     async with session.get(url, timeout=60) as resp:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        async with aiofiles.open(filename, "wb") as f:
-            async for chunk in resp.content.iter_chunked(1024*1024):
-                await f.write(chunk)
+        total = int(resp.headers.get("Content-Length", 0))
+        chunk_size = 1024 * 1024  # 1MB
 
-async def check_cache(session, url, error_urls):
+        if total > 0:
+            with tqdm(total=total, unit="B", unit_scale=True, unit_divisor=1024,
+                      desc=f"下载 {os.path.basename(filename)}", leave=False) as pbar:
+                async with aiofiles.open(filename, "wb") as f:
+                    async for chunk in resp.content.iter_chunked(chunk_size):
+                        await f.write(chunk)
+                        pbar.update(len(chunk))
+        else:
+            async with aiofiles.open(filename, "wb") as f:
+                async for chunk in resp.content.iter_chunked(chunk_size):
+                    await f.write(chunk)
+
+        if total_pbar:
+            total_pbar.update(1)
+
+# -------------------------
+# 异步检测缓存（HIT 优化验证）
+# -------------------------
+async def check_cache(session, url, error_urls, head_bytes=1024):
     try:
         async with session.head(url, timeout=15) as r:
             status = r.headers.get("cf-cache-status", "").upper()
@@ -95,25 +112,17 @@ async def check_cache(session, url, error_urls):
                 return "⚠️ ERROR", "返回 HTML，可能无效"
 
             if status == "HIT":
-                return "✅ SUCCESS", age
+                headers = {"Range": f"bytes=0-{head_bytes-1}"}
+                async with session.get(url, headers=headers, timeout=15) as resp:
+                    chunk = await resp.content.read(head_bytes)
+                    if b"<html" in chunk.lower():
+                        error_urls.append(url)
+                        return "⚠️ ERROR", "HIT 但返回 HTML"
+                    else:
+                        return "✅ SUCCESS", age
 
             elif status == "MISS" and DOWNLOAD_IF_MISS:
-                tmp_file = None
-                if SAVE_FILE:
-                    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-                    tmp_file = os.path.join(DOWNLOAD_DIR, os.path.basename(url))
-                else:
-                    tmp_file = tempfile.NamedTemporaryFile(delete=False).name
-
-                await download_file(session, url, tmp_file)
-                if not SAVE_FILE:
-                    os.remove(tmp_file)
-                await asyncio.sleep(HEAD_WAIT)
-
-                async with session.head(url, timeout=15) as r2:
-                    status2 = r2.headers.get("cf-cache-status", "").upper()
-                    age2 = r2.headers.get("age", "0")
-                    return "✅ SUCCESS", age2
+                return "🟡 MISS", age
 
             else:
                 return "🟡 MISS", age
@@ -125,11 +134,23 @@ async def check_cache(session, url, error_urls):
 # -------------------------
 # 异步 worker
 # -------------------------
-async def worker(sem, session, url, col, i, error_urls):
+async def worker(sem, session, url, col, i, error_urls, total_pbar=None):
     async with sem:
         status, age = await check_cache(session, url, error_urls)
-        df.at[i, f"{col}_cache_status"] = status
-        df.at[i, f"{col}_age"] = age
+        if status != "✅ SUCCESS":
+            print(f"[{col}] {status} | age: {age} | {url}")
+
+        if status == "🟡 MISS" and DOWNLOAD_IF_MISS:
+            tmp_file = None
+            if SAVE_FILE:
+                os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+                tmp_file = os.path.join(DOWNLOAD_DIR, os.path.basename(url))
+            else:
+                tmp_file = tempfile.NamedTemporaryFile(delete=False).name
+
+            await download_file(session, url, tmp_file, total_pbar=total_pbar)
+            if not SAVE_FILE:
+                os.remove(tmp_file)
 
 # -------------------------
 # 主函数
@@ -143,15 +164,19 @@ async def main():
             for col in COLUMNS for i, row in df.iterrows() if pd.notna(row[col])
         ]
 
-        for f in tqdm_asyncio.as_completed(tasks, total=len(tasks), desc="检测进度"):
-            await f
+        with tqdm(total=len(tasks), desc="检测总进度") as total_pbar:
+            tasks_with_pbar = [
+                worker(sem, session, row[col], col, i, error_urls, total_pbar)
+                for col in COLUMNS for i, row in df.iterrows() if pd.notna(row[col])
+            ]
+            for f in tqdm_asyncio.as_completed(tasks_with_pbar, total=len(tasks_with_pbar)):
+                await f
 
         if AUTO_PURGE_CF_CACHE and error_urls:
             print(f"⚠️ 检测到 {len(error_urls)} 个错误 URL，开始批量清除 CF 缓存...")
             await purge_cf_cache(error_urls)
 
-    df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")
-    print(f"✅ 检测完成，结果已保存到 {OUTPUT_CSV}")
+    print("✅ 检测完成。")
 
 # -------------------------
 # 执行
