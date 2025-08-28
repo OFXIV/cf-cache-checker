@@ -1,6 +1,6 @@
-# CF Cache Checker(适用于免费CDN)
+# CF Cache Checker
 
-一个用于检测 Cloudflare 缓存状态的小脚本，支持在线 CSV 或本地 CSV 输入
+一个用于检测当前 `Cloudflare`当前节点缓存状态的小脚本，支持在线 CSV 或本地 CSV 输入
 
 ---
 
@@ -88,4 +88,5 @@ cf_cache_checker/
 └─ README.md            # 使用说明
 
 ```
+
 
