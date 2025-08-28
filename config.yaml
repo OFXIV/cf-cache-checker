@@ -7,7 +7,7 @@ csv_url: "https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0"
 max_concurrent: 5
 
 # 是否在首次 MISS 时下载完整文件触发缓存
-download_if_miss: true
+download_if_miss: false
 
 # 下载后等待多久再进行 HEAD 检测 (秒)
 head_wait_seconds: 1
@@ -33,4 +33,5 @@ auto_purge_cf_cache: false # 是否开启自动清除 CF 缓存
 # 清除单个 URL 缓存时使用
 cf_api_url: "https://api.cloudflare.com/client/v4"  # 默认 API 地址
 cf_api_token: "your_cf_api_token_here"             # 替换为实际 API Token
+
 cf_zone_id: "your_cf_zone_id_here"                 # 替换为你的 Zone ID
