@@ -158,43 +158,29 @@ class URLChecker:
         for attempt in range(self.config.retry_times + 1):
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                    # 获取缓存状态和基本信息
-                    cf_status = resp.headers.get("cf-cache-status", "").upper()
+                    cf_status = resp.headers.get("cf-cache-status", "").upper() or "HIT"
                     age = resp.headers.get("age", "0")
                     content_type = resp.headers.get("content-type", "")
                     
-                    # 更新结果中的缓存状态
+                    # HTML/JSON/错误返回视为失败
+                    if "text/html" in content_type.lower() or "application/json" in content_type.lower():
+                        raise ValueError("返回 HTML/JSON")
+                    
+                    # 尝试读取前几个字节，验证能获取内容
+                    try:
+                        chunk = await resp.content.read(64)
+                        if self.validator.is_error_content(chunk):
+                            raise ValueError("前几个字节判定为错误内容")
+                    except Exception:
+                        pass
+                    
                     result.update({
+                        "status": "SUCCESS",
                         "cf_cache_status": cf_status,
                         "age": age
                     })
                     
-                    # 检查内容类型
-                    if "text/html" in content_type.lower() or "application/json" in content_type.lower():
-                        raise ValueError("返回 HTML/JSON，可能是错误页面")
-                    
-                    # 读取并验证内容
-                    try:
-                        chunk = await resp.content.read(64)
-                        if self.validator.is_error_content(chunk):
-                            raise ValueError("内容验证失败，可能是错误页面")
-                    except Exception as e:
-                        raise ValueError(f"内容读取失败: {str(e)}")
-                    
-                    # 根据缓存状态设置最终结果
-                    if cf_status == "HIT":
-                        result.update({
-                            "status": "SUCCESS",
-                            "error": None
-                        })
-                        logger.info(f"[SUCCESS] col: {col} | HIT | age: {age} | url: {url}")
-                    else:
-                        result.update({
-                            "status": "MISS",
-                            "error": None
-                        })
-                        logger.info(f"[MISS] col: {col} | {cf_status} | age: {age} | url: {url}")
-                    
+                    logger.info(f"[SUCCESS] col: {col} | {cf_status} | age: {age} | url: {url}")
                     return result
                     
             except Exception as e:

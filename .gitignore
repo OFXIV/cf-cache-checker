@@ -5,6 +5,7 @@ downloads/
 # Python 缓存文件
 __pycache__/
 *.pyc
+.vscode
 
 # 本地覆盖配置（如果有）
 config_local.yaml
