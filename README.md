@@ -2,6 +2,8 @@
 
 一个用于检测Cloudflare CDN缓存状态的Python脚本工具，支持批量检测在线或本地CSV文件中的URL缓存状态，并提供缓存预热和自动清除功能。
 
+> -脚本直接请求链接：无法保证 HIT，每次可能 MISS / BYPASS  
+> -HIT / MISS / BYPASS 是 Cloudflare 根据请求头、源站响应头、文件类型等决定的
 ## 功能特点
 
 - **高效缓存检测**：通过HTTP请求检测`CF-Cache-Status`响应头判断缓存状态(HIT/MISS)
@@ -243,3 +245,4 @@ check_cache.py
 ## 许可证
 
 本项目采用MIT许可证，详情请查看LICENSE文件。
+
