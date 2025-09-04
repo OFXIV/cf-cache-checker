@@ -1,13 +1,12 @@
 # CF Cache Checker
 
-一个用于检测Cloudflare CDN缓存状态的Python脚本工具，支持批量检测在线或本地CSV文件中的URL缓存状态，并提供缓存预热和自动清除功能。
+一个用于检测Cloudflare CDN缓存状态的Python脚本工具，支持批量检测在线或本地json文件中的URL缓存状态，并提供缓存预热和自动清除功能。
 
 > -脚本直接请求链接：无法保证 HIT，每次可能 MISS / BYPASS  
 > -HIT / MISS / BYPASS 是 Cloudflare 根据请求头、源站响应头、文件类型等决定的
 ## 功能特点
 
 - **高效缓存检测**：通过HTTP请求检测`CF-Cache-Status`响应头判断缓存状态(HIT/MISS)
-- **批量URL处理**：支持多列批量检测CSV文件中的URL
 - **并发控制**：可配置并发数量，提高检测效率
 - **自动重试**：内置重试机制，提高检测准确性
 - **缓存预热**：可配置自动下载MISS资源以触发Cloudflare边缘节点缓存
@@ -62,15 +61,9 @@
 4. **配置参数**
    编辑`config.yaml`文件，配置CSV文件路径和检测参数：
    ```yaml
-   # CSV文件路径（在线URL或本地路径）
-   csv_url: "https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0"
-
-   # 需要检测的URL列名列表
-   columns:
-     - url
-     - cover
-     - lrc
-
+   # JSON 文件地址，可以是在线 URL 或本地路径
+   url: "https://cdn.jsdelivr.net/gh/你的用户名/你的仓库名/data/audio.json"
+   
    # 并发请求数
    max_concurrent: 5
 
@@ -88,14 +81,8 @@
 ### 基础配置
 
 ```yaml
-# CSV文件地址（支持在线URL或本地路径）
-csv_url: "https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0"
-
-# 需要检测的URL列名列表
-columns:
-  - url
-  - cover
-  - lrc
+# JSON 文件地址，可以是在线 URL 或本地路径
+url: "https://cdn.jsdelivr.net/gh/你的用户名/你的仓库名/data/audio.json"
 
 # 输出结果文件名
 output_csv: "output_cache_status.csv"
@@ -147,23 +134,20 @@ cf_zone_id: "your_cf_zone_id_here"
 
 1. **基本使用**（仅检测缓存状态）
    ```yaml
-   csv_url: "data/urls.csv"
-   columns: ["image_url", "video_url"]
+   url: "data/urls.json"
    max_concurrent: 3
    ```
 
 2. **缓存预热**（自动下载MISS资源）
    ```yaml
-   csv_url: "https://example.com/data.csv"
-   columns: ["url"]
+   url: "data/urls.json"
    download_if_miss: true
    head_wait_seconds: 3
    ```
 
 3. **自动清除缓存**（需要有效API凭证）
    ```yaml
-   csv_url: "urls_to_check.csv"
-   columns: ["url"]
+   url: "data/urls.json"
    auto_purge_cf_cache: true
    cf_api_token: "abc123..."
    cf_zone_id: "xyz456..."
@@ -212,11 +196,7 @@ cf_zone_id: "your_cf_zone_id_here"
 
 1. 对于大型文件，如果开启`download_if_miss: true`，下载可能占用大量带宽。
 
-2. 表格列必须存在，否则会报错。
-
-3. 对于Google Sheets，请使用CSV导出链接，确保公开访问。
-
-4. 免费CDN缓存清除API调用有限，请谨慎使用自动清除功能。
+2. 免费CDN缓存清除API调用有限，请谨慎使用自动清除功能。
 
 ## 项目结构
 
@@ -234,7 +214,7 @@ cf-cache-checker/
 ```
 check_cache.py
 ├── ConfigManager        # 配置加载与管理
-├── CSVProcessor         # CSV数据处理
+├── JSONProcessor         # JSON数据处理
 ├── URLChecker          # URL检测核心逻辑
 ├── ContentValidator     # 内容验证
 ├── CloudflareCacheManager # CF API交互
@@ -245,5 +225,6 @@ check_cache.py
 ## 许可证
 
 本项目采用MIT许可证，详情请查看LICENSE文件。
+
 
 
