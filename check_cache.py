@@ -10,6 +10,7 @@ import aiofiles
 import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+import json
 
 # -------------------------
 # 配置日志
@@ -25,11 +26,10 @@ logger = logging.getLogger(__name__)
 # -------------------------
 @dataclass
 class Config:
-    csv_url: str
+    url: str
     max_concurrent: int = 5
     download_if_miss: bool = False
     retry_times: int = 2
-    columns: List[str] = None
     keep_downloaded_file: bool = False
     download_dir: str = "downloads"
     output_csv: str = "output_cache_status.csv"
@@ -38,10 +38,6 @@ class Config:
     cf_api_token: Optional[str] = None
     cf_zone_id: Optional[str] = None
     head_wait_seconds: int = 1
-
-    def __post_init__(self):
-        if self.columns is None:
-            self.columns = ["url", "cover", "lrc"]
 
 # -------------------------
 # 配置管理
@@ -60,28 +56,33 @@ class ConfigManager:
         return Config(**config_data)
 
 # -------------------------
-# CSV 处理器
+# JSON 处理器
 # -------------------------
-class CSVProcessor:
+class JSONProcessor:
     def __init__(self, config: Config):
         self.config = config
     
     def load_dataframe(self) -> pd.DataFrame:
-        csv_url = self.config.csv_url
-        if csv_url.startswith("http"):
-            r = requests.get(csv_url)
+        url = self.config.url
+        if url.startswith("http"):
+            r = requests.get(url)
             r.raise_for_status()
-            df = pd.read_csv(StringIO(r.text))
-        elif os.path.exists(csv_url):
-            df = pd.read_csv(csv_url)
+            data = r.json()
+        elif os.path.exists(url):
+            with open(url, "r", encoding="utf-8") as f:
+                data = json.load(f)
         else:
-            raise ValueError(f"CSV_URL 无效或文件不存在: {csv_url}")
+            raise ValueError(f"JSON 文件无效或不存在: {url}")
+
+        df = pd.DataFrame(data)
+
+        # 过滤空行或非 http 开头字段
+        def is_http(val):
+            return isinstance(val, str) and val.lower().startswith("http")
         
-        for col in self.config.columns:
-            if col not in df.columns:
-                raise ValueError(f"列 '{col}' 在 CSV 中不存在")
-        
-        return df
+        df_filtered = df[df.apply(lambda row: any(is_http(v) for v in row), axis=1)]
+
+        return df_filtered
 
 # -------------------------
 # 内容验证器
@@ -89,8 +90,7 @@ class CSVProcessor:
 class ContentValidator:
     @staticmethod
     def is_error_content(chunk: bytes) -> bool:
-        text = chunk.lower()
-        return b"<html" in text or b"{\"code\"" in text or b"failed" in text
+        return b"<html" in chunk.lower() or b"{\"code\"" in chunk.lower() or b"failed" in chunk.lower()
 
 # -------------------------
 # Cloudflare 缓存管理器
@@ -126,11 +126,11 @@ class CloudflareCacheManager:
                 json=payload, 
                 headers=headers
             ) as resp:
+                text = await resp.text()
                 if resp.status == 200:
                     logger.info(f"自动清除 {len(urls)} 个 URL 缓存成功")
                     return True
                 else:
-                    text = await resp.text()
                     logger.warning(f"自动清除缓存失败: {text}")
                     return False
         except Exception as e:
@@ -146,23 +146,12 @@ class URLChecker:
         self.validator = ContentValidator()
     
     async def check_url(self, session: aiohttp.ClientSession, url: str, col: str) -> Dict[str, Any]:
-        result = {
-            "url": url,
-            "column": col,
-            "status": None,
-            "cf_cache_status": None,
-            "age": None,
-            "error": None
-        }
+        result = {"url": url, "column": col, "status": None, "cf_cache_status": None, "age": None, "error": None}
         
         for attempt in range(self.config.retry_times + 1):
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                    cf_status = resp.headers.get("cf-cache-status")
-                    if cf_status:
-                        cf_status = cf_status.upper()
-                    else:
-                        cf_status = "N/A"  # 或者 None
+                    cf_status = resp.headers.get("cf-cache-status", "N/A").upper()
                     age = resp.headers.get("age", "0")
                     content_type = resp.headers.get("content-type", "")
                     
@@ -170,33 +159,21 @@ class URLChecker:
                     if "text/html" in content_type.lower() or "application/json" in content_type.lower():
                         raise ValueError("返回 HTML/JSON")
                     
-                    # 尝试读取前几个字节，验证能获取内容
-                    try:
-                        chunk = await resp.content.read(64)
-                        if self.validator.is_error_content(chunk):
-                            raise ValueError("前几个字节判定为错误内容")
-                    except Exception:
-                        pass
+                    chunk = await resp.content.read(64)
+                    if self.validator.is_error_content(chunk):
+                        raise ValueError("前几个字节判定为错误内容")
                     
-                    result.update({
-                        "status": "SUCCESS",
-                        "cf_cache_status": cf_status,
-                        "age": age
-                    })
-                    
+                    result.update({"status": "SUCCESS", "cf_cache_status": cf_status, "age": age})
                     logger.info(f"[SUCCESS] col: {col} | {cf_status} | age: {age} | url: {url}")
                     return result
                     
             except Exception as e:
                 if attempt < self.config.retry_times:
-                    logger.warning(f"[WARN] col: {col} | url: {url} | 尝试 {attempt + 1}/{self.config.retry_times} | cf_status: {result['cf_cache_status'] or 'N/A'} | 错误: {e}")
+                    logger.warning(f"[WARN] col: {col} | url: {url} | 尝试 {attempt + 1}/{self.config.retry_times} | 错误: {e}")
                     await asyncio.sleep(0.5)
                 else:
-                    result.update({
-                        "status": "ERROR",
-                        "error": str(e)
-                    })
-                    logger.error(f"[ERROR] col: {col} | url: {url} | 尝试 {attempt + 1}/{self.config.retry_times} | cf_status: {result['cf_cache_status'] or 'N/A'} | 错误: {e}")
+                    result.update({"status": "ERROR", "error": str(e)})
+                    logger.error(f"[ERROR] col: {col} | url: {url} | 尝试 {attempt + 1}/{self.config.retry_times} | 错误: {e}")
                     return result
 
 # -------------------------
@@ -208,7 +185,7 @@ class FileDownloader:
     
     async def download_file(self, session: aiohttp.ClientSession, url: str, filename: str):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=60), cookies=None) as resp:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
             async with aiofiles.open(filename, "wb") as f:
                 async for chunk in resp.content.iter_chunked(1024 * 1024):
                     await f.write(chunk)
@@ -219,7 +196,7 @@ class FileDownloader:
 class CacheCheckController:
     def __init__(self, config: Config):
         self.config = config
-        self.csv_processor = CSVProcessor(config)
+        self.json_processor = JSONProcessor(config)
         self.url_checker = URLChecker(config)
         self.downloader = FileDownloader(config)
         self.cf_manager = CloudflareCacheManager(config)
@@ -241,36 +218,30 @@ class CacheCheckController:
                         tmp_file.close()
                     
                     await self.downloader.download_file(session, url, filename)
-                    
-                    # 等待指定时间后再检查
                     await asyncio.sleep(self.config.head_wait_seconds)
-                    
-                    # 如果不保留文件则删除
                     if not self.config.keep_downloaded_file:
                         os.remove(filename)
                 except Exception as e:
                     logger.error(f"下载文件时出错 {url}: {e}")
     
     async def run(self):
-        df = self.csv_processor.load_dataframe()
+        df = self.json_processor.load_dataframe()
         
         sem = asyncio.Semaphore(self.config.max_concurrent)
-        
         async with aiohttp.ClientSession() as session:
-            tasks = [
-                self.worker(sem, session, row[col], col)
-                for col in self.config.columns 
-                for _, row in df.iterrows() 
-                if pd.notna(row[col])
-            ]
+            tasks = []
+            for _, row in df.iterrows():
+                for col, val in row.items():
+                    if isinstance(val, str) and val.lower().startswith("http"):
+                        tasks.append(self.worker(sem, session, val, col))
             await asyncio.gather(*tasks)
         
-        # 保存结果到CSV
+        # 保存结果到 CSV
         results_df = pd.DataFrame(self.results)
         results_df.to_csv(self.config.output_csv, index=False)
         logger.info(f"结果已保存到 {self.config.output_csv}")
         
-        # 处理错误URL并清除缓存
+        # 清除 CF 缓存
         error_urls = [r["url"] for r in self.results if r["status"] == "ERROR"]
         if self.config.auto_purge_cf_cache and error_urls:
             logger.info(f"检测到 {len(error_urls)} 个错误 URL，开始批量清除 CF 缓存...")
