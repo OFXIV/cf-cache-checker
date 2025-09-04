@@ -2,6 +2,8 @@
 
 一个用于检测Cloudflare CDN缓存状态的Python脚本工具，支持批量检测在线或本地CSV文件中的URL缓存状态，并提供缓存预热和自动清除功能。
 
+> -脚本直接请求链接：无法保证 HIT，每次可能 MISS / BYPASS  
+> -HIT / MISS / BYPASS 是 Cloudflare 根据请求头、源站响应头、文件类型等决定的
 ## 功能特点
 
 - **高效缓存检测**：通过HTTP请求检测`CF-Cache-Status`响应头判断缓存状态(HIT/MISS)
@@ -176,12 +178,12 @@ cf_zone_id: "your_cf_zone_id_here"
 
 ## 输出示例
 
-```
-[SUCCESS] col: cover | HIT | age: 4191 | url: https://example.com/xxx.jpg
-[ERROR] col: cover | url: https://example.com/xxx1.jpg | 尝试 3/2 | cf_status: HIT | 错误: 返回 HTML/JSON
-⚠️ 检测到 1 个错误 URL，开始批量清除 CF 缓存...
-✅ 自动清除 1 个 URL 缓存成功
-✅ 检测完成。
+```bash
+2025-09-04 05:15:26,561 - INFO - [SUCCESS] col: lrc | MISS | age: 0 | url: https://example.com/xxx1.jpg
+2025-09-04 05:15:33,613 - WARNING - [WARN] col: lrc | url: https://example.com/xxx.jpg | 尝试 1/2 | cf_status: N/A | 错误: 
+2025-09-04 05:15:40,228 - INFO - [SUCCESS] col: lrc | MISS | age: 0 | url: https://example.com/xxx.jpg
+2025-09-04 05:15:40,373 - INFO - 结果已保存到 output_cache_status.csv
+2025-09-04 05:15:40,374 - INFO - 检测完成。
 ```
 
 ## 常见问题解答
@@ -243,3 +245,5 @@ check_cache.py
 ## 许可证
 
 本项目采用MIT许可证，详情请查看LICENSE文件。
+
+
