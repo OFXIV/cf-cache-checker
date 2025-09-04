@@ -158,7 +158,11 @@ class URLChecker:
         for attempt in range(self.config.retry_times + 1):
             try:
                 async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
-                    cf_status = resp.headers.get("cf-cache-status", "").upper() or "HIT"
+                    cf_status = resp.headers.get("cf-cache-status")
+                    if cf_status:
+                        cf_status = cf_status.upper()
+                    else:
+                        cf_status = "N/A"  # 或者 None
                     age = resp.headers.get("age", "0")
                     content_type = resp.headers.get("content-type", "")
                     
@@ -204,7 +208,7 @@ class FileDownloader:
     
     async def download_file(self, session: aiohttp.ClientSession, url: str, filename: str):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=60), cookies=None) as resp:
             async with aiofiles.open(filename, "wb") as f:
                 async for chunk in resp.content.iter_chunked(1024 * 1024):
                     await f.write(chunk)
